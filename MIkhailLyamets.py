@@ -6,14 +6,15 @@ from numba import njit
 
 def show_images(images, names, scale=3):
     num_cols = len(images) // 2
-    num_rows = len(images) - num_cols
-    print(num_cols, num_rows)
+    num_rows = len(images) // num_cols
     figsize = (num_cols * scale, num_rows * scale)
     _, axes = plt.subplots(num_rows, num_cols, figsize=figsize)
     for i in range(num_rows):
         for j in range(num_cols):
-            axes[i][j].imshow(images[i * num_cols + j], cmap=plt.get_cmap('gray'))
-            axes[i][j].set_title(names[i * num_cols + j])
+            index = i * num_cols + j
+            # plt.imsave(os.path.join('/tmp/', images[index], cmap='', type='tiff')
+            axes[i][j].imshow(images[index], cmap=plt.get_cmap('gray'))
+            axes[i][j].set_title(names[index])
     plt.show()
 
 
@@ -52,7 +53,11 @@ def cfft2(image):
 @njit
 def fft2(image, invert=False):
     shape = image.shape
-    im = np.copy(image.reshape(-1))
+
+    im = np.full(image.size, complex(0))
+    for i, each in enumerate(image.reshape(-1)):
+        im[i] = complex(each)
+
     length = len(im)
     lg_n = 0
 
@@ -98,7 +103,7 @@ def main():
     root = './input'
     _, _, names = list(os.walk(root))[0]
     images = []
-    for each in names[:1]:
+    for each in names:
         path = os.path.join(root, each)
         image = plt.imread(path)
         images.append(rgb2gray(image))
@@ -107,28 +112,26 @@ def main():
         print('input/ is empty')
         return
 
-    # show_images(images, names)
-
     # images = list(map(sparsity_check, images))
     # show_images(images, names)
 
-    A_hat = list(map(fft2, images))
-
     decompressed = []
-    print(len(A_hat))
-    for each in A_hat:
+    for each in images:
         # thresholds = .1 * np.array([0.001, 0.005, 0.01]) * \
         #              np.max(np.abs(each))
-        # print(thresholds)
-        truncated = np.real(each)
-        truncated = np.real(fft2(truncated.astype(complex), invert=True))
-        # truncated = np.real(ifft2(truncated))
+        hat = fft2(each)
+        th = np.percentile(abs(hat), 99)
+        print(th)
+        truncated = np.where(abs(hat) > th, hat, hat * 0)
+        print(truncated)
+        truncated = fft2(truncated, True)
         decompressed.append(truncated)
 
-    # show_images(decompressed, names)
-    # show_images(images[:2] + decompressed[:2], names[:2] + names[:2], scale=10)
+    decompressed[:] = map(np.real, decompressed)
 
-    show_images([images[0]] * 2 + [decompressed[0]] * 2, [names[0]] * 4)
+
+    show_images(images + decompressed, names + names, scale=5)
+    # show_images(images[:2] + decompressed[:2], names[:2] + names[:2], scale=4)
 
 
 if __name__ == '__main__':

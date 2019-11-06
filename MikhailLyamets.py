@@ -112,26 +112,33 @@ def main():
         print('input/ is empty')
         return
 
-    # images = list(map(sparsity_check, images))
-    # show_images(images, names)
-
     decompressed = []
     for each in images:
-        # thresholds = .1 * np.array([0.001, 0.005, 0.01]) * \
-        #              np.max(np.abs(each))
         hat = fft2(each)
-        th = np.percentile(abs(hat), 99)
-        print(th)
+        th = np.percentile(abs(hat), 99.99)
         truncated = np.where(abs(hat) > th, hat, hat * 0)
-        print(truncated)
         truncated = fft2(truncated, True)
         decompressed.append(truncated)
 
     decompressed[:] = map(np.real, decompressed)
 
+    OUT_DIR = 'MikhailLyametsOutputs'
+
+    try:
+        if not os.path.exists(OUT_DIR):
+            os.mkdir(OUT_DIR)
+    except OSError:
+        print(f'Creation of the output directory {OUT_DIR} failed')
+
+    for each, name in zip(images, names):
+        name, ext = os.path.splitext(name)
+        plt.imsave(arr=each, fname=os.path.join(OUT_DIR, name + ext), format='tiff', cmap='gray')
+
+    for each, name in zip(decompressed, names):
+        name, ext = os.path.splitext(name)
+        plt.imsave(arr=each, fname=os.path.join(OUT_DIR, name + 'Compressed' + ext), format='tiff', cmap='gray')
 
     show_images(images + decompressed, names + names, scale=5)
-    # show_images(images[:2] + decompressed[:2], names[:2] + names[:2], scale=4)
 
 
 if __name__ == '__main__':

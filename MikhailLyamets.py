@@ -1,10 +1,27 @@
 from matplotlib import numpy as np
 import matplotlib.pyplot as plt
 import os
-from numba import njit
+
+# from numba import njit
+
+""" by Mikhail Lyamets
+    @fenchelfen
+    
+    !!! If you'd like to speed up the code greatly,
+        please import njit and revive the @njit decorators
+    
+    ``` If you'd like to see a nice visualisation,
+        please uncomment show_images function at the end of main() 
+"""
 
 
 def show_images(images, names, scale=3):
+    """
+    Show an even number of images on a grid, use for debug
+    :param images: np arrays
+    :param names: images' names
+    :param scale: how large your pictures should be
+    """
     num_cols = len(images) // 2
     num_rows = len(images) // num_cols
     figsize = (num_cols * scale, num_rows * scale)
@@ -21,8 +38,8 @@ def show_images(images, names, scale=3):
 def rgb2gray(image):
     """
     https://stackoverflow.com/a/12201744/9308909
-    :param image:
-    :return:
+    :param image: np array
+    :return: grayscale image as np array
     """
     return image if len(image.shape) < 3 else \
         image[..., :3] @ [0.2989, 0.5870, 0.1140]
@@ -30,15 +47,18 @@ def rgb2gray(image):
 
 def sparsity_check(hat):
     """
-    Convert your fft2 processed image to a fancy one
-    :param image:
-    :return:
+    Visualize frequency image components so that the dominant ones are centered
+    :param image: np array after fft2
+    :return: shifted image filtered through log (to see the accents better)
     """
     return np.log(abs(np.fft.fftshift(hat) + 1))
 
 
-@njit
+# @njit
 def rev(num, lg_n):
+    """
+    Help the original iterative fft compute certain black magic bitshifts
+    """
     res = 0
     for i in range(lg_n):
         if num & (1 << i):
@@ -46,12 +66,14 @@ def rev(num, lg_n):
     return res
 
 
-def cfft2(image):
-    return np.fft.fft2(image)
-
-
-@njit
+# @njit
 def fft2(image, invert=False):
+    """
+    Perform a two-dimensional fft in an iterative way
+    :param image: np array
+    :param invert: true if ifft
+    :return: processed image as np array
+    """
     shape = image.shape
 
     im = np.full(image.size, complex(0))
@@ -96,11 +118,20 @@ def ifft2(image):
     :param image:
     :return:
     """
-    return np.fft.ifft2(image)
+    return fft2(image, invert=True)
 
 
 def main():
+    """
+    Iterate over tiff images in input/ and remove unwanted noise
+    :return: 0 if success, 2 if reading error
+    """
     root = './input'
+
+    if not os.path.exists(root):
+        print(f'no {root} folder is found, abort', end='\n\n')
+        return 2
+
     _, _, names = list(os.walk(root))[0]
     images = []
     for each in names:
@@ -109,13 +140,13 @@ def main():
         images.append(rgb2gray(image))
 
     if not images:
-        print('input/ is empty')
-        return
+        print(f'{root} is empty, abort', end='\n\n')
+        return 2
 
     decompressed = []
     for each in images:
         hat = fft2(each)
-        th = np.percentile(abs(hat), 99.99)
+        th = np.percentile(abs(hat), 70)
         truncated = np.where(abs(hat) > th, hat, hat * 0)
         truncated = fft2(truncated, True)
         decompressed.append(truncated)
@@ -130,15 +161,11 @@ def main():
     except OSError:
         print(f'Creation of the output directory {OUT_DIR} failed')
 
-    for each, name in zip(images, names):
-        name, ext = os.path.splitext(name)
-        plt.imsave(arr=each, fname=os.path.join(OUT_DIR, name + ext), format='tiff', cmap='gray')
-
     for each, name in zip(decompressed, names):
         name, ext = os.path.splitext(name)
         plt.imsave(arr=each, fname=os.path.join(OUT_DIR, name + 'Compressed' + ext), format='tiff', cmap='gray')
 
-    show_images(images + decompressed, names + names, scale=5)
+    # show_images(images + decompressed, names + names, scale=5)
 
 
 if __name__ == '__main__':
